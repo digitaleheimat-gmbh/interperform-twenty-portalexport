@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openimmo>
+  <uebertragung art="ONLINE" umfang="TEIL" modus="NEW" version="1.2.7" sendersoftware="digitaleheimat Twenty Export" senderversion="0.1" techn_email="ar@digitaleheimat.de" timestamp="2026-07-14T15:30:00"/>
+  <anbieter>
+    <anbieternr>51266</anbieternr>
+    <firma>Interperform Real Estate UG</firma>
+    <openimmo_anid>51266</openimmo_anid>
+    <immobilie>
+      <objektkategorie>
+        <nutzungsart WOHNEN="1" GEWERBE="0"/>
+        <vermarktungsart KAUF="1" MIETE_PACHT="0"/>
+        <objektart>
+          <wohnung wohnungtyp="ETAGE"/>
+        </objektart>
+      </objektkategorie>
+      <geo>
+        <plz>10115</plz>
+        <ort>Berlin</ort>
+        <bundesland>Berlin</bundesland>
+      </geo>
+      <kontaktperson>
+        <email_zentrale>paul@interperform.de</email_zentrale>
+        <name>Hörmann</name>
+        <vorname>Paul</vorname>
+        <firma>Interperform Real Estate UG</firma>
+      </kontaktperson>
+      <preise>
+        <kaufpreis>250000.00</kaufpreis>
+        <waehrung iso_waehrung="EUR"/>
+      </preise>
+      <flaechen>
+        <wohnflaeche>52.00</wohnflaeche>
+        <anzahl_zimmer>2</anzahl_zimmer>
+      </flaechen>
+      <freitexte>
+        <objekttitel>TESTINSERAT – bitte ignorieren (Schnittstellentest)</objekttitel>
+        <objektbeschreibung>Dies ist ein technisches Testinserat zur Prüfung der OpenImmo-Schnittstelle. Bitte nicht kontaktieren. Das Inserat wird umgehend wieder deaktiviert.</objektbeschreibung>
+      </freitexte>
+      <verwaltung_techn>
+        <objektnr_intern>DH-TEST-20260714</objektnr_intern>
+        <objektnr_extern>DH-TEST-20260714</objektnr_extern>
+        <openimmo_obid>51266-DH-TEST-20260714</openimmo_obid>
+        <kennung_ursprung>twenty-export-test</kennung_ursprung>
+        <stand_vom>2026-07-14</stand_vom>
+      </verwaltung_techn>
+    </immobilie>
+  </anbieter>
+</openimmo>

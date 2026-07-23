@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openimmo>
+  <uebertragung art="ONLINE" umfang="TEIL" modus="CHANGE" version="1.2.7" sendersoftware="digitaleheimat Twenty Export" senderversion="0.1" techn_email="ar@digitaleheimat.de" timestamp="2026-07-14T16:15:00"/>
+  <anbieter>
+    <anbieternr>51266</anbieternr>
+    <firma>Interperform Real Estate UG</firma>
+    <openimmo_anid>51266</openimmo_anid>
+    <immobilie>
+      <objektkategorie>
+        <nutzungsart WOHNEN="1" GEWERBE="0"/>
+        <vermarktungsart KAUF="1" MIETE_PACHT="0"/>
+        <objektart>
+          <wohnung wohnungtyp="ETAGE"/>
+        </objektart>
+      </objektkategorie>
+      <geo>
+        <plz>10115</plz>
+        <ort>Berlin</ort>
+      </geo>
+      <verwaltung_techn>
+        <objektnr_intern>DH-TEST-20260714</objektnr_intern>
+        <objektnr_extern>DH-TEST-20260714</objektnr_extern>
+        <aktion aktionart="DELETE"/>
+        <openimmo_obid>51266-DH-TEST-20260714</openimmo_obid>
+        <kennung_ursprung>twenty-export-test</kennung_ursprung>
+        <stand_vom>2026-07-14</stand_vom>
+      </verwaltung_techn>
+    </immobilie>
+  </anbieter>
+</openimmo>
