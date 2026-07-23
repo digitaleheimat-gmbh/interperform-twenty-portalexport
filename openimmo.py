@@ -128,13 +128,35 @@ def _verwaltung_techn(immobilie_el: ET.Element, cfg: PortalConfig,
     ET.SubElement(vt, "stand_vom").text = stand_vom
 
 
+# MIME-Angabe für <format> je ZIP-Dateiendung (lade_bilder liefert nur
+# jpg/png, weil alles andere schon am Magic-Byte-Check scheitert).
+_ANHANG_FORMAT = {"jpg": "image/jpeg", "png": "image/png"}
+
+
 def _append_anhaenge(immobilie_el: ET.Element,
                      attachments: Optional[list] = None) -> None:
-    """Hook für den <anhaenge>-Block — wird in TASK-013 ausgebaut.
+    """<anhaenge>-Block gemäß OpenImmo 1.2.7 (TASK-013).
 
-    Bewusst noch No-Op: die Bild-Paketierung (Dateireferenzen im ZIP,
-    anhangtitel, format, check-Hashes) ist erst in TASK-013 spezifiziert.
+    attachments: Liste in ZIP-Reihenfolge — Einträge sind Dateinamen (str)
+    oder (dateiname, bytes)-Tupel, wie sie lade_bilder/build_zip verwenden.
+    Ohne attachments entsteht KEIN <anhaenge>-Element, damit die Struktur
+    der validierten Vorlage (die keinen Block hat) unverändert bleibt.
+    Erstes Bild = gruppe="TITELBILD" (createdAt-Reihenfolge aus Twenty).
     """
+    if not attachments:
+        return None
+    anhaenge = ET.SubElement(immobilie_el, "anhaenge")
+    for i, att in enumerate(attachments):
+        pfad = att[0] if isinstance(att, (tuple, list)) else att
+        anhang = ET.SubElement(anhaenge, "anhang", {
+            "location": "EXTERN",
+            "gruppe": "TITELBILD" if i == 0 else "BILD",
+        })
+        ET.SubElement(anhang, "anhangtitel").text = pfad
+        ext = pfad.rsplit(".", 1)[-1].lower()
+        ET.SubElement(anhang, "format").text = _ANHANG_FORMAT.get(ext, ext)
+        daten = ET.SubElement(anhang, "daten")
+        ET.SubElement(daten, "pfad").text = pfad
     return None
 
 
@@ -163,11 +185,14 @@ def _serialize(root: ET.Element, encoding: str) -> bytes:
 def build_upsert_xml(immobilie: dict, order: dict,
                      config: Union[PortalConfig, dict],
                      timestamp: Optional[datetime] = None,
-                     modus: str = "NEW") -> bytes:
+                     modus: str = "NEW",
+                     attachments: Optional[list] = None) -> bytes:
     """Erzeugt das UPSERT-XML nach templates/openimmo-new.xml.
 
     objektnr_extern kommt IMMER aus order["objektnummer"] — nie aus der
     Immobilie, damit die Portal-Identität allein vom Auftrag gesteuert wird.
+    attachments: siehe _append_anhaenge — ohne Anhänge bleibt das XML
+    strukturidentisch zur Vorlage.
     """
     cfg = _cfg(config)
     objektnummer = order["objektnummer"]
@@ -208,6 +233,9 @@ def build_upsert_xml(immobilie: dict, order: dict,
         "iso_waehrung": immobilie.get("waehrung", "EUR"),
     })
 
+    # XSD-Sequenz: <anhaenge> steht VOR <verwaltung_techn>.
+    _append_anhaenge(immo, attachments)
+
     stand_vom = immobilie.get("stand_vom") or date.today().isoformat()
     _verwaltung_techn(
         immo, cfg,
@@ -215,8 +243,6 @@ def build_upsert_xml(immobilie: dict, order: dict,
         objektnr_extern=objektnummer,
         stand_vom=stand_vom,
     )
-
-    _append_anhaenge(immo, None)  # TASK-013
 
     return _serialize(root, cfg.encoding)
 
