@@ -49,7 +49,11 @@ ORDER_FIELDS = """
     versuchszaehler
     immobilieId
     createdAt
+    updatedAt
 """
+# updatedAt (TASK-014): dient worker._in_backoff als Zeitpunkt des letzten
+# Fehlversuchs — jeder Fehlversuch schreibt versuchszaehler per update_order
+# und zieht damit Twentys updatedAt automatisch mit, ohne eigenes Zeitfeld.
 
 
 class TwentyClientError(Exception):
