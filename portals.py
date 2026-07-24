@@ -26,15 +26,25 @@ PORTALS = {
         "anbieternr": "51266",
         "aktiv": True,
     },
-    # GLOIM ist vorbereitet, aber noch nicht freigeschaltet — Platzhalter,
-    # bis Zugangsdaten vom Portal vorliegen.
+    # GLOIM: Zugangsdaten aus der PropStack-Konfiguration übernommen (24.07.,
+    # Screenshot "Portal bearbeiten (214971)"). PropStack nutzt dort Port 21
+    # OHNE TLS ("21 (FTP)") — dieser Worker verbindet sich aber ausschließlich
+    # per FTPS (Sicherheitsregel, s. oben); das Portal bietet laut selbem
+    # Screenshot auch "21 (FTPS)" an, daher hier bewusst FTPS gewählt.
+    # Encoding NOCH NICHT bestätigt — vor Aktivierung zwingend mit Jürgen
+    # Lindemann klären (ADR-005), da viele ältere OpenImmo-Importer
+    # ISO-8859-1 statt UTF-8 erwarten. "aktiv" bleibt False, bis: (1) das
+    # echte FTP-Passwort vorliegt, (2) das Encoding bestätigt ist, (3) die
+    # Cutover-Regel geprüft ist (PropStack bespielt GLOIM aktuell parallel —
+    # nie gleichzeitig beide Systeme auf denselben Account, s. spec.md
+    # Domain Context) und (4) TASK-020 explizit freigegeben wurde.
     "gloim": {
-        "host": "ftp.gloim.example",
+        "host": "gloim.info",
         "port": 21,
-        "user": "PLATZHALTER",
+        "user": "web1531f1",
         "password_env": "GLOIM_FTP_PASSWORD",
-        "encoding": "utf-8",
-        "anbieternr": "PLATZHALTER",
+        "encoding": "utf-8",  # TODO(TASK-020): mit Jürgen Lindemann bestätigen (ADR-005)
+        "anbieternr": "web1531f1",
         "aktiv": False,
     },
 }
