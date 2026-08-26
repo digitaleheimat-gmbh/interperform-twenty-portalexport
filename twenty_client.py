@@ -20,10 +20,14 @@ DEFAULT_BASE_URL = "https://twenty-vlsc.srv1747052.hstgr.cloud"
 # (ab 26.08.) alles, was website.build_payload für den Website-Kanal
 # braucht — ein einzelner gemeinsamer get_immobilie-Query für alle Kanäle,
 # die zusätzlichen Felder sind für meinestadt/GLOIM/IS24 einfach ungenutzt.
-# Jeder Feldname unten wurde am 26.08. live gegen ein reales Immobilie-
-# Objekt verifiziert (kein Introspection-Raten — Twentys __type-Introspection
-# lässt hier vereinzelt Felder aus, die per Query trotzdem funktionieren,
-# z. B. objektnummer; live-Query ist die verlässlichere Quelle).
+# Jeder Feldname unten wurde live gegen ein reales Immobilie-Objekt
+# verifiziert (kein Introspection-Raten — Twentys __type-Introspection lässt
+# hier vereinzelt Felder aus, die per Query trotzdem funktionieren, z. B.
+# objektnummer; live-Query ist die verlässlichere Quelle).
+# Zweiter Block (26.08., zweiter Durchgang): Ergänzung für das auf
+# Twenty-natives Schema umgestellte ACF-Feldset in
+# interperform-website-export/includes/acf-fields.php — live gegen
+# "MFH Luckenwalde" verifiziert.
 IMMOBILIE_FIELDS = """
     id
     name
@@ -65,6 +69,32 @@ IMMOBILIE_FIELDS = """
     baujahr
     maklerprovisionProzent
     maklerprovision
+    grundstuecksflaeche
+    betriebskosten { amountMicros currencyCode }
+    gesamtmiete { amountMicros currencyCode }
+    hausgeld
+    pacht { amountMicros currencyCode }
+    erbpacht
+    bewertungVon { amountMicros currencyCode }
+    bewertungBis { amountMicros currencyCode }
+    tatsaechlicherPreis { amountMicros currencyCode }
+    grundbuchstand
+    klimaanlageVorhanden
+    kaminVorhanden
+    poolVorhanden
+    einliegerwohnungVorhanden
+    seniorenaufzugVorhanden
+    tiefgaragenstellplatzVorhanden
+    loggiaVorhanden
+    vermietet
+    treibhausgasemission
+    erschliessungszustand
+    flaechennutzungsart
+    bebauungsplan
+    vermarktungslinie
+    anzahlWohneinheiten
+    merkmale
+    exposeText
 """
 
 ORDER_FIELDS = """

@@ -6,6 +6,14 @@ Gegenstück: WordPress-Plugin ``interperform-website-export`` — konkret
 (Payload-Schema), siehe ``BRAIN-IPR/2026-08-26-konzept-website-export.md``
 Abschnitt 3/4 für den vollständigen Kontext.
 
+Schema-Wechsel 26.08. (zweiter Durchgang): Das WordPress-ACF-Schema wurde von
+einer PropStack-Feld-Spiegelung auf ein komplett Twenty-natives Schema
+umgestellt (siehe ``interperform-website-export/includes/acf-fields.php``).
+``build_payload`` ist dadurch fast reines Durchreichen statt Übersetzung —
+keine Adress-Zerlegung, keine Ausstattungs-Aggregation, keine Enum-Umbenennung
+mehr nötig, weil die Feldnamen und Auswahlwerte auf beiden Seiten identisch
+sind (Twenty-Rohwerte, z. B. "SANIERUNGSBEDUERFTIG").
+
 Sicherheitsmodell (analog ``portals.py``): das Secret steht NIE im Code, nur
 der Name der Env-Var (``SECRET_ENV``). ``aktiv`` bleibt ``False``, bis Secret,
 Endpoint und WordPress-Route produktiv durchgetestet sind (Konzept Schritt 6),
@@ -16,7 +24,6 @@ import hashlib
 import hmac
 import json
 import os
-import re
 import urllib.error
 import urllib.request
 
@@ -29,56 +36,47 @@ SIGNATURE_HEADER = "X-Interperform-Signature"
 # stellen — analog "aktiv": False bei GLOIM in portals.py.
 AKTIV = False
 
-_PLZ_RE = re.compile(r"\b\d{5}\b")
-# Straße + Hausnummer: Hausnummer ist eine Zahl (ggf. mit Buchstaben-Suffix
-# wie "12a") am Ende des Textes vor der PLZ.
-_HAUSNR_RE = re.compile(r"^(?P<strasse>.*?)\s+(?P<hausnr>\d+\s*[a-zA-Z]?)$")
+# Twenty-Feldname → Payload-Key ist identisch (1:1-Schema) für alle Felder in
+# diesen Listen. Muss mit interperform-website-export/includes/mapping.php
+# (iprwe_number_fields/iprwe_boolean_fields/iprwe_text_fields/
+# iprwe_array_fields/iprwe_rich_text_fields) übereinstimmen.
 
-# ACF-Checkbox-Werte von "furnishings" (interperform-website-export/includes/
-# acf-fields.php, field_6971ca06797dc) — feste Zuordnung zu den Twenty-
-# Ausstattungs-Booleans, die "direkt kompatibel" sind (Konzept Abschnitt 4).
-_FURNISHING_FLAGS = (
-    ("aufzugVorhanden", "lift"),
-    ("kellerraumVorhanden", "cellar"),
-    ("denkmalschutz", "monument"),
-    ("barrierefrei", "barrier_free"),
-    ("gaesteWcVorhanden", "guest_toilet"),
-    ("einbaukuecheVorhanden", "built_in_kitchen"),
-    ("terrasseVorhanden", "balcony"),
-    ("gartenVorhanden", "garden"),
+CURRENCY_FIELDS = (
+    "kaufpreis", "nettokaltmiete", "betriebskosten", "gesamtmiete", "pacht",
+    "bewertungVon", "bewertungBis", "tatsaechlicherPreis",
 )
+
+# Plain-NUMBER-Felder (keine Currency-Objekte in Twenty, s. Metadata-API 26.08.).
+NUMBER_FIELDS = (
+    "baujahr", "wohnflaeche", "grundstuecksflaeche", "zimmer", "schlafzimmer",
+    "badezimmer", "stellplaetze", "anzahlWohneinheiten", "maklerprovision",
+    "hausgeld", "energieverbrauchskennwert", "treibhausgasemission",
+)
+
+BOOLEAN_FIELDS = (
+    "erbpacht", "kellerraumVorhanden", "aufzugVorhanden", "einbaukuecheVorhanden",
+    "gartenVorhanden", "terrasseVorhanden", "denkmalschutz", "barrierefrei",
+    "klimaanlageVorhanden", "kaminVorhanden", "poolVorhanden", "gaesteWcVorhanden",
+    "einliegerwohnungVorhanden", "seniorenaufzugVorhanden",
+    "tiefgaragenstellplatzVorhanden", "loggiaVorhanden", "vermietet", "energieausweis",
+)
+
+TEXT_FIELDS = (
+    "adresse", "bezirk", "vermarktungsart", "objektzustand", "etage",
+    "ausstattungsstandard", "vermarktungslinie", "maklerprovisionProzent",
+    "grundbuchstand", "energieausweisArt", "energieeffizienzklasse",
+    "energietraeger", "heizungsart", "erschliessungszustand",
+    "flaechennutzungsart", "bebauungsplan", "beschreibung",
+    "ausstattungsbeschreibung", "besonderheiten", "lagebeschreibung",
+)
+
+ARRAY_FIELDS = ("objektart", "merkmale")
+
+RICH_TEXT_FIELDS = ("exposeText",)
 
 
 class WebsiteExportError(Exception):
     """Transport-/HTTP-Fehler beim Website-Export — enthält nie das Secret."""
-
-
-def _parse_adresse(adresse):
-    """Zerlegt Twentys Freitext-``adresse`` in street/house_number/zip_code/city.
-
-    Gleiche Regel wie im OpenImmo-Pfad (worker.immobilie_zu_openimmo_dict):
-    ohne PLZ-Treffer wird nichts geraten, alle vier Felder bleiben leer.
-    """
-    if not isinstance(adresse, str):
-        adresse = ""
-    plz_match = _PLZ_RE.search(adresse)
-    if not plz_match:
-        return {"street": "", "house_number": "", "zip_code": "", "city": ""}
-
-    zip_code = plz_match.group(0)
-    vorspann = adresse[: plz_match.start()].strip(" ,")
-    rest = adresse[plz_match.end():].strip(" ,")
-    city = rest.split(",")[0].strip() if rest else ""
-
-    hausnr_match = _HAUSNR_RE.match(vorspann)
-    if hausnr_match:
-        street = hausnr_match.group("strasse").strip(" ,")
-        house_number = hausnr_match.group("hausnr").strip()
-    else:
-        street = vorspann
-        house_number = ""
-
-    return {"street": street, "house_number": house_number, "zip_code": zip_code, "city": city}
 
 
 def _betrag_euro(currency):
@@ -96,71 +94,42 @@ def _betrag_euro(currency):
     return int(euro) if euro.is_integer() else euro
 
 
-def _energieausweis_status(immobilie):
-    vorhanden = immobilie.get("energieausweis")
-    if vorhanden is None:
-        return None
-    if vorhanden is False:
-        return "NICHT_VORHANDEN"
-    return immobilie.get("energieausweisArt") or "VORHANDEN"
-
-
-def _furnishings(immobilie):
-    """Immer als Liste (auch leer) — ein zurückgesetztes Flag in Twenty muss
-    die Checkbox auf der Website ebenfalls leeren, nicht unverändert lassen."""
-    return [token for feld, token in _FURNISHING_FLAGS if immobilie.get(feld) is True]
-
-
 def build_payload(immobilie, attachments):
     """Baut den JSON-Payload für den WordPress-Endpoint (mapping.php-Schema).
 
     Pure Funktion, kein Netzzugriff — ``attachments`` ist bereits die Liste
     aus ``twenty_client.get_attachments`` (nicht heruntergeladen: WordPress
-    lädt die signierten URLs selbst per ``media_sideload_image``, ein
-    zusätzlicher Download/Re-Upload über diesen Worker wäre reine
-    Verschwendung von Bandbreite für einen Kanal, der ohnehin nur die URL
-    braucht).
+    lädt die signierten URLs selbst per ``media_sideload_image``).
 
-    Feld-mit-Twenty-Quelle → Key wird IMMER gesetzt (auch ``null``, damit ein
-    in Twenty geleertes Feld die Website-Angabe ebenfalls leert). Nur Felder
-    OHNE jede Twenty-Entsprechung (region, bathroom, flooring_type,
-    parking_space_types, price_on_inquiry, rent_subsidy, highlight,
-    number_of_floors) fehlen im Payload ganz statt mit Platzhalter.
-
-    Wertesatz-Übersetzung (objektzustand/apartment_type-Enums → deutsche
-    Labels) ist bewusst noch NICHT Teil dieser Funktion — Twenty-Rohwerte
-    (z. B. "GEPFLEGT") gehen 1:1 durch. Eigener Schritt, s. Konzept
-    Abschnitt 7 Punkt 5.
+    Jedes Feld aus CURRENCY/NUMBER/BOOLEAN/TEXT/ARRAY/RICH_TEXT_FIELDS wird
+    IMMER gesetzt (auch ``null``/leeres Array), damit ein in Twenty geleertes
+    Feld die Website-Angabe ebenfalls leert (WordPress-Seite: ``mapping.php``
+    löscht die Meta explizit bei ``null`` statt den Altwert stehen zu lassen).
+    ``verfuegbarAb`` wird auf den reinen Datumsanteil gekürzt, `highlight`
+    ist bewusst NICHT Teil des Payloads (website-eigenes Redaktionsfeld).
     """
-    objektart = immobilie.get("objektart") or []
-    verfuegbar_ab = immobilie.get("verfuegbarAb")
+    fields = {}
 
-    fields = {
-        "number_of_rooms": immobilie.get("zimmer"),
-        "price": _betrag_euro(immobilie.get("kaufpreis")),
-        "base_rent": _betrag_euro(immobilie.get("nettokaltmiete")),
-        "living_space": immobilie.get("wohnflaeche"),
-        "free_from": verfuegbar_ab[:10] if verfuegbar_ab else None,
-        "construction_year": immobilie.get("baujahr"),
-        "condition": immobilie.get("objektzustand"),
-        "heating_type": immobilie.get("heizungsart"),
-        "firing_types": immobilie.get("energietraeger"),
-        "energy_certificate_availability": _energieausweis_status(immobilie),
-        "courtage": immobilie.get("maklerprovisionProzent")
-        or immobilie.get("maklerprovision"),
-        "description_note": immobilie.get("beschreibung"),
-        "location_note": immobilie.get("lagebeschreibung"),
-        "furnishing_note": immobilie.get("ausstattungsbeschreibung"),
-        "other_note": immobilie.get("besonderheiten"),
-        "apartment_type": objektart[0] if objektart else None,
-        "floor": immobilie.get("etage"),
-        "interior_quality": immobilie.get("ausstattungsstandard"),
-        "number_of_bed_rooms": immobilie.get("schlafzimmer"),
-        "number_of_bath_rooms": immobilie.get("badezimmer"),
-        "number_of_parking_spaces": immobilie.get("stellplaetze"),
-        "furnishings": _furnishings(immobilie),
-    }
-    fields.update(_parse_adresse(immobilie.get("adresse")))
+    for feld in CURRENCY_FIELDS:
+        fields[feld] = _betrag_euro(immobilie.get(feld))
+
+    for feld in NUMBER_FIELDS:
+        fields[feld] = immobilie.get(feld)
+
+    for feld in BOOLEAN_FIELDS:
+        fields[feld] = bool(immobilie.get(feld)) if immobilie.get(feld) is not None else None
+
+    for feld in TEXT_FIELDS:
+        fields[feld] = immobilie.get(feld)
+
+    for feld in ARRAY_FIELDS:
+        fields[feld] = immobilie.get(feld) or []
+
+    for feld in RICH_TEXT_FIELDS:
+        fields[feld] = immobilie.get(feld)
+
+    verfuegbar_ab = immobilie.get("verfuegbarAb")
+    fields["verfuegbarAb"] = verfuegbar_ab[:10] if verfuegbar_ab else None
 
     images = [
         {
