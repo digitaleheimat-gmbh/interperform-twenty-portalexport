@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timezone
 
 import portals
+import website
 from openimmo import build_delete_xml, build_upsert_xml, build_zip
 from twenty_client import BildFehler, TwentyClient, TwentyClientError, lade_bilder
 from validate import validate
@@ -36,6 +37,7 @@ PORTAL_KEY_MAPPING = {
     "MEINESTADT": "meinestadt",
     "GLOIM": "gloim",
     "IMMOSCOUT24": "immoscout24",
+    "WEBSITE": "website",
 }
 
 # Statischer OpenImmo-Kontakt: Twenty hat (Stand TASK-014) kein strukturiertes
@@ -210,8 +212,10 @@ def immobilie_zu_openimmo_dict(immobilie):
 # Ausnahmen, die einen Upload-Fehlversuch als Infrastrukturfehler qualifizieren
 # (FR-016) — TwentyClientError (Statusrückschreibung könnte scheitern, wird
 # hier aber nicht gefangen, s. _upload_mit_retry) plus alles, was ftplib bei
-# Netzwerk-/Verbindungsproblemen wirft (Error, OSError, EOFError).
-_INFRA_FEHLER = (TwentyClientError,) + ftplib.all_errors
+# Netzwerk-/Verbindungsproblemen wirft (Error, OSError, EOFError), plus
+# WebsiteExportError für den HTTPS-Kanal — dieselbe Backoff-/Retry-Logik
+# gilt kanalunabhängig.
+_INFRA_FEHLER = (TwentyClientError, website.WebsiteExportError) + ftplib.all_errors
 
 
 def _infra_fehlversuch(order, twenty, exc):
@@ -324,13 +328,75 @@ def _process_upsert(order, twenty, portals, dry_run):
     return "uebermittelt (%s)" % zip_name
 
 
+def _process_website_delete(order, twenty, dry_run):
+    """DELETE ist für portal=WEBSITE (noch) nicht implementiert — die
+    WordPress-Route (interperform-website-export/includes/rest-api.php)
+    kennt bisher nur den Upsert-Endpoint (Konzept Abschnitt 3/5). Kein
+    Retry: ein fehlender Endpoint behebt sich nicht durch Wiederholen."""
+    meldung = (
+        "DELETE wird fuer den Website-Kanal noch nicht unterstuetzt "
+        "(WordPress-Plugin bietet bisher nur einen Upsert-Endpoint)."
+    )
+    if dry_run:
+        return "dry-run: %s" % meldung
+    twenty.update_order(order["id"], status="FEHLER", fehlermeldung=meldung)
+    return "fehler (Website-DELETE nicht unterstuetzt, kein Retry): %s" % meldung
+
+
+def _process_website_upsert(order, twenty, dry_run):
+    if not dry_run and _in_backoff(order):
+        return "uebersprungen (Backoff aktiv, versuchszaehler=%s)" % order.get("versuchszaehler")
+
+    immobilie = twenty.get_immobilie(order["immobilieId"])
+    blockers, warnungen = validate(immobilie)
+    if blockers:
+        meldung = "; ".join(blockers)
+        if dry_run:
+            return "dry-run: Validierungsfehler (kein Statusschreiben): %s" % meldung
+        twenty.update_order(order["id"], status="FEHLER", fehlermeldung=meldung)
+        return "fehler (Validierung, kein Retry): %s" % meldung
+
+    # Kein Bilder-Download nötig (anders als beim FTPS-Pfad): der Payload
+    # trägt nur signierte URLs, WordPress lädt die Bilder selbst herunter.
+    attachments = [] if dry_run else twenty.get_attachments(order["immobilieId"])
+    payload = website.build_payload(immobilie, attachments)
+
+    if dry_run:
+        return ("dry-run: Website-Payload gebaut (objektnummer=%s), %d Bild(er), "
+                 "%d Warnungen — kein POST"
+                 % (payload["objektnummer"], len(payload["images"]), len(warnungen)))
+
+    try:
+        website.post(payload)
+    except _INFRA_FEHLER as exc:
+        return _infra_fehlversuch(order, twenty, exc)
+
+    neuer_hinweis = _merge_warnhinweis(order.get("warnhinweis"), warnungen)
+    twenty.update_order(
+        order["id"],
+        status="UEBERMITTELT",
+        letzterExport=_jetzt_iso_utc(),
+        warnhinweis=neuer_hinweis,
+        fehlermeldung=None,
+    )
+    return "uebermittelt (website, objektnummer=%s)" % payload["objektnummer"]
+
+
 def process_order(order, twenty, portals, dry_run):
     """Verarbeitet einen Auftrag; liefert einen Ergebnis-String fürs Log.
 
     DELETE-Regel (kritisch): ein DELETE lädt NIE die Immobilie und
     durchläuft KEINE Validierung — es zählt allein order["objektnummer"],
     denn die Immobilie kann im CRM bereits gelöscht/verändert sein.
+
+    portal=WEBSITE zweigt komplett ab (JSON+HTTPS statt XML/ZIP+FTPS,
+    s. website.py) — das FTPS-`portals`-Modul wird für diesen Kanal gar
+    nicht erst angefasst.
     """
+    if _portal_key(order) == "website":
+        if order.get("aktion") == "DELETE":
+            return _process_website_delete(order, twenty, dry_run)
+        return _process_website_upsert(order, twenty, dry_run)
     if order.get("aktion") == "DELETE":
         return _process_delete(order, twenty, portals, dry_run)
     return _process_upsert(order, twenty, portals, dry_run)

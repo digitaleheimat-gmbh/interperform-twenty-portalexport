@@ -25,6 +25,17 @@ Module: `worker.py` (Poll-Loop, Dedup/FIFO, Retry), `twenty_client.py`
 (GraphQL + Attachment-Download), `openimmo.py` (XML-Generator), `validate.py`
 (Validierung), `portals.py` (Portal-Registry + FTPS).
 
+**Kanal `portal: WEBSITE` (ab 26.08.) ist ein Sonderfall:** kein FTPS+XML,
+sondern JSON-Payload + signierter HTTPS-POST an die Companion-WordPress-
+Plugin-Route (`interperform-website-export`, Gegenstück zum früheren
+PropStack-Plugin). Eigenes Modul `website.py` statt eines `portals.py`-
+Eintrags (die FTPS-Registry passt strukturell nicht), `worker.process_order`
+zweigt für diesen Kanal komplett vor dem FTPS-Pfad ab. Details, Feld-Mapping
+und offene Punkte: `BRAIN-IPR/2026-08-26-konzept-website-export.md`.
+`website.AKTIV = False`, bis Secret+Endpoint produktiv getestet sind (s. dort
+Schritt 6) — bis dahin bricht jeder `WEBSITE`-Auftrag mit einem klaren
+`RuntimeError` ab, statt fälschlich als „übermittelt" zu gelten.
+
 ## Betrieb
 
 ### Logs lesen

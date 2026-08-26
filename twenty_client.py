@@ -16,21 +16,52 @@ log = logging.getLogger("twenty_client")
 DEFAULT_BASE_URL = "https://twenty-vlsc.srv1747052.hstgr.cloud"
 
 # Feldliste laut validate.py-Docstring (Introspection Twenty v2.11.2) —
-# alles, was Validierung (FR-005/FR-006) und XML-Erzeugung brauchen.
+# alles, was Validierung (FR-005/FR-006) und XML-Erzeugung brauchen, PLUS
+# (ab 26.08.) alles, was website.build_payload für den Website-Kanal
+# braucht — ein einzelner gemeinsamer get_immobilie-Query für alle Kanäle,
+# die zusätzlichen Felder sind für meinestadt/GLOIM/IS24 einfach ungenutzt.
+# Jeder Feldname unten wurde am 26.08. live gegen ein reales Immobilie-
+# Objekt verifiziert (kein Introspection-Raten — Twentys __type-Introspection
+# lässt hier vereinzelt Felder aus, die per Query trotzdem funktionieren,
+# z. B. objektnummer; live-Query ist die verlässlichere Quelle).
 IMMOBILIE_FIELDS = """
     id
     name
     objektnummer
     adresse
     vermarktungsart
+    vermarktungsstatus
     kaufpreis { amountMicros currencyCode }
     nettokaltmiete { amountMicros currencyCode }
     wohnflaeche
     zimmer
+    schlafzimmer
+    badezimmer
+    bezirk
+    lagebeschreibung
+    beschreibung
+    besonderheiten
+    ausstattungsbeschreibung
+    objektzustand
+    heizungsart
+    energietraeger
+    energieausweis
     energieausweisArt
     energieverbrauchskennwert
     energieeffizienzklasse
-    energietraeger
+    objektart
+    ausstattungsstandard
+    etage
+    stellplaetze
+    verfuegbarAb
+    kellerraumVorhanden
+    aufzugVorhanden
+    denkmalschutz
+    barrierefrei
+    gaesteWcVorhanden
+    einbaukuecheVorhanden
+    terrasseVorhanden
+    gartenVorhanden
     baujahr
     maklerprovisionProzent
     maklerprovision

@@ -10,6 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import website  # noqa: E402
 from twenty_client import BildFehler, TwentyClientError  # noqa: E402
 from worker import (  # noqa: E402
     immobilie_zu_openimmo_dict,
@@ -355,3 +356,96 @@ def test_adapter_kontakt_defaults():
     assert d["kontakt_email"] == "paul@interperform.de"
     assert d["kontakt_name"] == "Hörmann"
     assert d["kontakt_vorname"] == "Paul"
+
+
+# --- portal=WEBSITE-Dispatch (Konzept 2026-08-26) ------------------------------
+# Eigener Kanal (JSON+HTTPS statt XML/ZIP+FTPS) — fake_portals bleibt hier
+# absichtlich leer/ungenutzt, um zu beweisen, dass der FTPS-Pfad für diesen
+# Kanal gar nicht erst angefasst wird.
+
+def _website_order(**overrides):
+    order = _upsert_order(portal="WEBSITE", **overrides)
+    return order
+
+
+def test_website_upsert_erfolg_ruft_website_post_nicht_ftps_upload(monkeypatch):
+    order = _website_order()
+    twenty = FakeTwenty(immobilie=VOLLSTAENDIGE_IMMOBILIE, attachments=[])
+    fake_portals = FakePortalsModule()
+
+    calls = []
+    monkeypatch.setattr(website, "post", lambda payload: calls.append(payload) or {"ok": True})
+
+    ergebnis = process_order(order, twenty, fake_portals, dry_run=False)
+
+    assert "uebermittelt" in ergebnis
+    assert fake_portals.calls == [], "Website-Kanal darf portals.upload (FTPS) nie aufrufen"
+    assert len(calls) == 1
+    assert calls[0]["objektnummer"] == "IPR-immo-1"
+    _, fields = twenty.update_order_calls[-1]
+    assert fields["status"] == "UEBERMITTELT"
+    assert fields["letzterExport"]
+
+
+def test_website_upsert_validierungsfehler_kein_post(monkeypatch):
+    unvollstaendig = dict(VOLLSTAENDIGE_IMMOBILIE, wohnflaeche=None, zimmer=None)
+    order = _website_order()
+    twenty = FakeTwenty(immobilie=unvollstaendig)
+    fake_portals = FakePortalsModule()
+
+    calls = []
+    monkeypatch.setattr(website, "post", lambda payload: calls.append(payload))
+
+    ergebnis = process_order(order, twenty, fake_portals, dry_run=False)
+
+    assert "Validierung" in ergebnis
+    assert calls == []
+    _, fields = twenty.update_order_calls[-1]
+    assert fields["status"] == "FEHLER"
+
+
+def test_website_upsert_transienter_fehler_retry(monkeypatch):
+    order = _website_order(versuchszaehler=0)
+    twenty = FakeTwenty(immobilie=VOLLSTAENDIGE_IMMOBILIE, attachments=[])
+    fake_portals = FakePortalsModule()
+
+    def kaputt(payload):
+        raise website.WebsiteExportError("HTTP 500 (simuliert)")
+
+    monkeypatch.setattr(website, "post", kaputt)
+
+    ergebnis = process_order(order, twenty, fake_portals, dry_run=False)
+
+    assert "transienter Fehler" in ergebnis
+    _, fields = twenty.update_order_calls[-1]
+    assert fields.get("versuchszaehler") == 1
+    assert "status" not in fields
+
+
+def test_website_dry_run_kein_post_kein_statusschreiben(monkeypatch):
+    order = _website_order()
+    twenty = FakeTwenty(immobilie=VOLLSTAENDIGE_IMMOBILIE)
+    fake_portals = FakePortalsModule()
+
+    calls = []
+    monkeypatch.setattr(website, "post", lambda payload: calls.append(payload))
+
+    ergebnis = process_order(order, twenty, fake_portals, dry_run=True)
+
+    assert "dry-run" in ergebnis
+    assert calls == []
+    assert twenty.update_order_calls == []
+
+
+def test_website_delete_nicht_unterstuetzt_kein_retry():
+    order = _website_order(aktion="DELETE")
+    twenty = FakeTwenty()
+    fake_portals = FakePortalsModule()
+
+    ergebnis = process_order(order, twenty, fake_portals, dry_run=False)
+
+    assert "nicht unterstuetzt" in ergebnis
+    assert twenty.get_immobilie_calls == []
+    _, fields = twenty.update_order_calls[-1]
+    assert fields["status"] == "FEHLER"
+    assert "versuchszaehler" not in fields
