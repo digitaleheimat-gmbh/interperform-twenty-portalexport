@@ -34,10 +34,15 @@ PORTALS = {
     # Encoding NOCH NICHT bestätigt — vor Aktivierung zwingend mit Jürgen
     # Lindemann klären (ADR-005), da viele ältere OpenImmo-Importer
     # ISO-8859-1 statt UTF-8 erwarten. "aktiv" bleibt False, bis: (1) das
-    # echte FTP-Passwort vorliegt, (2) das Encoding bestätigt ist, (3) die
-    # Cutover-Regel geprüft ist (PropStack bespielt GLOIM aktuell parallel —
-    # nie gleichzeitig beide Systeme auf denselben Account, s. spec.md
-    # Domain Context) und (4) TASK-020 explizit freigegeben wurde.
+    # echte FTP-Passwort vorliegt — ERLEDIGT 26.08., Paul hat es geschickt,
+    # per Read-only-FTPS-Login (Verzeichnisliste, kein Upload) verifiziert;
+    # Verzeichnis war zum Testzeitpunkt leer, es lag also keine vorhandene
+    # OpenImmo-Datei vor, an deren <?xml ... encoding=...?>-Deklaration sich
+    # das Encoding hätte ablesen lassen, (2) das Encoding bestätigt ist
+    # [weiterhin offen], (3) die Cutover-Regel geprüft ist (PropStack
+    # bespielt GLOIM aktuell parallel — nie gleichzeitig beide Systeme auf
+    # denselben Account, s. spec.md Domain Context) und (4) TASK-020
+    # explizit freigegeben wurde.
     "gloim": {
         "host": "gloim.info",
         "port": 21,
