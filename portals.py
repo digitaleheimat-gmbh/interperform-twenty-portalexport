@@ -31,24 +31,33 @@ PORTALS = {
     # OHNE TLS ("21 (FTP)") — dieser Worker verbindet sich aber ausschließlich
     # per FTPS (Sicherheitsregel, s. oben); das Portal bietet laut selbem
     # Screenshot auch "21 (FTPS)" an, daher hier bewusst FTPS gewählt.
-    # Encoding NOCH NICHT bestätigt — vor Aktivierung zwingend mit Jürgen
-    # Lindemann klären (ADR-005), da viele ältere OpenImmo-Importer
-    # ISO-8859-1 statt UTF-8 erwarten. "aktiv" bleibt False, bis: (1) das
-    # echte FTP-Passwort vorliegt — ERLEDIGT 26.08., Paul hat es geschickt,
-    # per Read-only-FTPS-Login (Verzeichnisliste, kein Upload) verifiziert;
-    # Verzeichnis war zum Testzeitpunkt leer, es lag also keine vorhandene
-    # OpenImmo-Datei vor, an deren <?xml ... encoding=...?>-Deklaration sich
-    # das Encoding hätte ablesen lassen, (2) das Encoding bestätigt ist
-    # [weiterhin offen], (3) die Cutover-Regel geprüft ist (PropStack
-    # bespielt GLOIM aktuell parallel — nie gleichzeitig beide Systeme auf
-    # denselben Account, s. spec.md Domain Context) und (4) TASK-020
-    # explizit freigegeben wurde.
+    # Encoding: bewusste Produktentscheidung (AR, 26.08.) — UTF-8 erstmal
+    # ohne externe Bestätigung von Jürgen Lindemann (ADR-005 hatte das als
+    # Vorbedingung genannt). Grundlage: OpenImmo selbst ist laut Verband
+    # UTF-8-fähig; ein Live-Test mit einem [TEST]-Objekt gegen den echten
+    # GLOIM-FTP-Account blieb ergebnislos (Datei wurde von deren Importer
+    # binnen Sekunden abgeholt, ist aber nicht auf gloim.info erschienen —
+    # weder unter Brandenburg noch Berlin, ~10 Min. geprüft). Falls sich
+    # UTF-8 nach der Aktivierung als falsch erweist, zeigt sich das an
+    # kaputten Umlauten in den GLOIM-Live-Inseraten — dann auf iso-8859-1
+    # umstellen (s. ISO_8859_1_ERSATZ in openimmo.py).
+    # "aktiv" bleibt dennoch False, bis: (1) das echte FTP-Passwort vorliegt
+    # — ERLEDIGT 26.08., per Read-only-FTPS-Login verifiziert, (2) das
+    # Encoding entschieden ist — ERLEDIGT 26.08. (s. o.), (3) die
+    # Cutover-Regel geprüft ist — WEITERHIN OFFEN und akut: live-Check
+    # 26.08. zeigt, dass PropStack diesen Account gerade aktiv bespielt (12
+    # Objekte unter Brandenburg, 14 unter Berlin, u. a. die Luckenwalde-MFH
+    # aus Twenty) — und (4) TASK-020 explizit freigegeben wurde. In Twenty
+    # existieren für GLOIM zudem noch keine Record-Actions (s. README
+    # "Neues Portal anbinden"), d. h. aktuell kann ohnehin kein realer
+    # Auftrag entstehen — das Freischalten von "aktiv" allein hat also noch
+    # keine Produktivwirkung, bis diese Record-Actions gebaut sind.
     "gloim": {
         "host": "gloim.info",
         "port": 21,
         "user": "web1531f1",
         "password_env": "GLOIM_FTP_PASSWORD",
-        "encoding": "utf-8",  # TODO(TASK-020): mit Jürgen Lindemann bestätigen (ADR-005)
+        "encoding": "utf-8",
         "anbieternr": "web1531f1",
         "aktiv": False,
     },
