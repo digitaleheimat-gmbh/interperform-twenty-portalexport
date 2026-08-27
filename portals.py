@@ -47,11 +47,15 @@ PORTALS = {
     # Cutover-Regel geprüft ist — WEITERHIN OFFEN und akut: live-Check
     # 26.08. zeigt, dass PropStack diesen Account gerade aktiv bespielt (12
     # Objekte unter Brandenburg, 14 unter Berlin, u. a. die Luckenwalde-MFH
-    # aus Twenty) — und (4) TASK-020 explizit freigegeben wurde. In Twenty
-    # existieren für GLOIM zudem noch keine Record-Actions (s. README
-    # "Neues Portal anbinden"), d. h. aktuell kann ohnehin kein realer
-    # Auftrag entstehen — das Freischalten von "aktiv" allein hat also noch
-    # keine Produktivwirkung, bis diese Record-Actions gebaut sind.
+    # aus Twenty) — und (4) TASK-020 explizit freigegeben wurde.
+    # Record-Actions "GLOIM: Übertragen/Aktualisieren" + "GLOIM: Inserat
+    # entfernen" existieren in Twenty bereits (ACTIVE, 1:1-Kopie der
+    # meinestadt-Workflows, live-verifiziert 26.08.) — der Knopf ist also
+    # schon da und klickbar. Ein Klick erzeugt heute trotzdem nur einen
+    # PortalExport-Auftrag, der wegen "aktiv": False dauerhaft AUSSTEHEND
+    # bleibt (worker.py: RuntimeError "nicht aktiviert", kein Schreibzugriff
+    # nach außen) — sicher, aber sollte niemanden zu der Annahme verleiten,
+    # der Kanal funktioniere schon.
     "gloim": {
         "host": "gloim.info",
         "port": 21,
