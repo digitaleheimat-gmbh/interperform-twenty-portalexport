@@ -329,18 +329,25 @@ def _process_upsert(order, twenty, portals, dry_run):
 
 
 def _process_website_delete(order, twenty, dry_run):
-    """DELETE ist für portal=WEBSITE (noch) nicht implementiert — die
-    WordPress-Route (interperform-website-export/includes/rest-api.php)
-    kennt bisher nur den Upsert-Endpoint (Konzept Abschnitt 3/5). Kein
-    Retry: ein fehlender Endpoint behebt sich nicht durch Wiederholen."""
-    meldung = (
-        "DELETE wird fuer den Website-Kanal noch nicht unterstuetzt "
-        "(WordPress-Plugin bietet bisher nur einen Upsert-Endpoint)."
-    )
+    """DELETE-Kern für portal=WEBSITE — spiegelt _process_delete (FTPS):
+    NIE get_immobilie, KEINE Validierung, ausschließlich order["objektnummer"],
+    denn die Immobilie kann in Twenty bereits gelöscht sein. Setzt den
+    WordPress-Beitrag auf draft (Soft-Remove, Konzept Abschnitt 4b) statt ihn
+    zu löschen."""
+    if not dry_run and _in_backoff(order):
+        return "uebersprungen (Backoff aktiv, versuchszaehler=%s)" % order.get("versuchszaehler")
+
     if dry_run:
-        return "dry-run: %s" % meldung
-    twenty.update_order(order["id"], status="FEHLER", fehlermeldung=meldung)
-    return "fehler (Website-DELETE nicht unterstuetzt, kein Retry): %s" % meldung
+        return "dry-run: Website-Entfernen-Payload gebaut (objektnummer=%s) — kein POST" % order["objektnummer"]
+
+    try:
+        website.delete(order["objektnummer"])
+    except _INFRA_FEHLER as exc:
+        return _infra_fehlversuch(order, twenty, exc)
+
+    twenty.update_order(order["id"], status="ENTFERNT", letzterExport=_jetzt_iso_utc(),
+                       fehlermeldung=None)
+    return "entfernt (website, objektnummer=%s)" % order["objektnummer"]
 
 
 def _process_website_upsert(order, twenty, dry_run):

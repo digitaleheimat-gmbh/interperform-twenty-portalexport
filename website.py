@@ -29,6 +29,11 @@ import urllib.request
 
 DEFAULT_URL = "https://immobilientenor.de/wp-json/interperform/v1/immobilie"
 URL_ENV = "WEBSITE_EXPORT_URL"
+# Getrennter Endpoint für DELETE (Konzept Abschnitt 4b) — der Upsert-Endpoint
+# verlangt zwingend title/fields, die ein DELETE-Auftrag (nur objektnummer,
+# s. build_delete_payload) nicht hat.
+DEFAULT_DELETE_URL = "https://immobilientenor.de/wp-json/interperform/v1/immobilie/entfernen"
+DELETE_URL_ENV = "WEBSITE_DELETE_URL"
 SECRET_ENV = "WEBSITE_WEBHOOK_SECRET"
 SIGNATURE_HEADER = "X-Interperform-Signature"
 
@@ -150,6 +155,16 @@ def build_payload(immobilie, attachments):
     }
 
 
+def build_delete_payload(objektnummer):
+    """Payload für den Entfernen-Endpoint — bewusst NUR die objektnummer.
+
+    Kein immobilie-Dict als Eingabe: DELETE-Aufträge dürfen laut worker.py-Regel
+    nie die Immobilie aus Twenty laden, denn sie kann dort bereits gelöscht
+    sein. objektnummer kommt daher immer aus order["objektnummer"].
+    """
+    return {"objektnummer": objektnummer}
+
+
 def _sign(body, secret):
     """HMAC-SHA256 über die rohen Body-Bytes, hex — muss exakt zu WordPress'
     ``hash_hmac('sha256', $request->get_body(), IPRWE_TWENTY_WEBHOOK_KEY)``
@@ -157,11 +172,13 @@ def _sign(body, secret):
     return hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
 
 
-def post(payload, timeout=30):
+def post(payload, timeout=30, url=None):
     """Signiert und sendet ``payload`` an den WordPress-Endpoint.
 
     Body wird genau einmal serialisiert und exakt dieselben Bytes signiert
     UND gesendet (keine zweite json.dumps-Stelle, die abweichen könnte).
+    ``url`` überschreibt den Upsert-Default — s. ``delete()`` für den
+    Entfernen-Endpoint.
     """
     if not AKTIV:
         raise RuntimeError("Website-Kanal ist nicht aktiviert (website.AKTIV=False)")
@@ -172,7 +189,7 @@ def post(payload, timeout=30):
             "Umgebungsvariable %s ist nicht gesetzt (Website-Webhook-Secret)" % SECRET_ENV
         )
 
-    url = os.environ.get(URL_ENV) or DEFAULT_URL
+    url = url or os.environ.get(URL_ENV) or DEFAULT_URL
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     signature = _sign(body, secret)
 
@@ -201,3 +218,13 @@ def post(payload, timeout=30):
         return json.loads(raw.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         return {}
+
+
+def delete(objektnummer, timeout=30):
+    """Entfernt (Soft-Remove) die Website-Veröffentlichung für ``objektnummer``.
+
+    Eigener Endpoint statt post() mit Upsert-URL — s. build_delete_payload/
+    DEFAULT_DELETE_URL. Nutzt dieselbe Signatur-/Fehlerbehandlung wie post().
+    """
+    delete_url = os.environ.get(DELETE_URL_ENV) or DEFAULT_DELETE_URL
+    return post(build_delete_payload(objektnummer), timeout=timeout, url=delete_url)

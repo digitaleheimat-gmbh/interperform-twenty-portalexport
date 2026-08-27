@@ -437,15 +437,53 @@ def test_website_dry_run_kein_post_kein_statusschreiben(monkeypatch):
     assert twenty.update_order_calls == []
 
 
-def test_website_delete_nicht_unterstuetzt_kein_retry():
-    order = _website_order(aktion="DELETE")
-    twenty = FakeTwenty()
+def test_website_delete_erfolg_setzt_entfernt_ohne_immobilien_zugriff(monkeypatch):
+    order = _website_order(aktion="DELETE", objektnummer="IPR-immo-1")
+    twenty = FakeTwenty()  # wuerde crashen, wenn get_immobilie aufgerufen wuerde
     fake_portals = FakePortalsModule()
+
+    calls = []
+    monkeypatch.setattr(website, "delete", lambda objektnummer: calls.append(objektnummer) or {"ok": True})
 
     ergebnis = process_order(order, twenty, fake_portals, dry_run=False)
 
-    assert "nicht unterstuetzt" in ergebnis
-    assert twenty.get_immobilie_calls == []
+    assert "entfernt" in ergebnis
+    assert twenty.get_immobilie_calls == [], "DELETE darf get_immobilie NIE aufrufen"
+    assert calls == ["IPR-immo-1"]
     _, fields = twenty.update_order_calls[-1]
-    assert fields["status"] == "FEHLER"
-    assert "versuchszaehler" not in fields
+    assert fields["status"] == "ENTFERNT"
+    assert fields["letzterExport"]
+
+
+def test_website_delete_transienter_fehler_retry(monkeypatch):
+    order = _website_order(aktion="DELETE", objektnummer="IPR-immo-1", versuchszaehler=0)
+    twenty = FakeTwenty()
+    fake_portals = FakePortalsModule()
+
+    def kaputt(objektnummer):
+        raise website.WebsiteExportError("HTTP 500 (simuliert)")
+
+    monkeypatch.setattr(website, "delete", kaputt)
+
+    ergebnis = process_order(order, twenty, fake_portals, dry_run=False)
+
+    assert "transienter Fehler" in ergebnis
+    _, fields = twenty.update_order_calls[-1]
+    assert fields.get("versuchszaehler") == 1
+    assert "status" not in fields
+
+
+def test_website_delete_dry_run_kein_post_kein_statusschreiben(monkeypatch):
+    order = _website_order(aktion="DELETE", objektnummer="IPR-immo-1")
+    twenty = FakeTwenty()
+    fake_portals = FakePortalsModule()
+
+    calls = []
+    monkeypatch.setattr(website, "delete", lambda objektnummer: calls.append(objektnummer))
+
+    ergebnis = process_order(order, twenty, fake_portals, dry_run=True)
+
+    assert "dry-run" in ergebnis
+    assert calls == []
+    assert twenty.update_order_calls == []
+    assert twenty.get_immobilie_calls == []

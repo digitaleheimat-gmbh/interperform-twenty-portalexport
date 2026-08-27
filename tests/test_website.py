@@ -262,3 +262,47 @@ def test_post_http_fehler_wird_zu_website_export_error(monkeypatch):
 
     with pytest.raises(website.WebsiteExportError, match="401"):
         website.post({"x": 1})
+
+
+# --- build_delete_payload / delete() -----------------------------------------------
+
+def test_build_delete_payload_nur_objektnummer():
+    assert website.build_delete_payload("IPR-immo-1") == {"objektnummer": "IPR-immo-1"}
+
+
+def test_delete_sendet_an_eigenen_endpoint(monkeypatch):
+    monkeypatch.setattr(website, "AKTIV", True)
+    monkeypatch.setenv(website.SECRET_ENV, "geheim")
+
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"ok": true, "post_id": null}'
+
+    def fake_urlopen(req, timeout=None):
+        captured["url"] = req.full_url
+        captured["body"] = req.data
+        return FakeResponse()
+
+    monkeypatch.setattr(website.urllib.request, "urlopen", fake_urlopen)
+
+    result = website.delete("IPR-immo-1")
+
+    assert captured["url"] == website.DEFAULT_DELETE_URL
+    assert captured["url"] != website.DEFAULT_URL
+    assert json.loads(captured["body"]) == {"objektnummer": "IPR-immo-1"}
+    assert result == {"ok": True, "post_id": None}
+
+
+def test_delete_wirft_wenn_nicht_aktiv(monkeypatch):
+    monkeypatch.setattr(website, "AKTIV", False)
+    monkeypatch.setenv(website.SECRET_ENV, "geheim")
+    with pytest.raises(RuntimeError, match="nicht aktiviert"):
+        website.delete("IPR-immo-1")
